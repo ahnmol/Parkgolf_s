@@ -95,6 +95,19 @@ app.put('/api/scores/:id', async (req, res) => {
   }
 });
 
+// 특정 대회 삭제
+app.delete('/api/scores/:id', async (req, res) => {
+  try {
+    const deletedScore = await Score.findByIdAndDelete(req.params.id);
+    if (!deletedScore) {
+      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    }
+    res.json({ message: '대회가 성공적으로 삭제되었습니다.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
