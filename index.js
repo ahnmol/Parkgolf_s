@@ -1,10 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const cron = require('node-cron');
-const fs = require('fs-extra');
-const path = require('path');
-const { exec } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -18,62 +14,6 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/parkgo
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB 연결 성공'))
   .catch(err => console.error('MongoDB 연결 실패:', err));
-
-// 백업 디렉토리 생성
-const backupDir = path.join(__dirname, 'backups');
-fs.ensureDirSync(backupDir);
-
-// 백업 함수
-const performBackup = () => {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(backupDir, `backup-${timestamp}`);
-  
-  // MongoDB URI에서 데이터베이스 이름 추출
-  const dbName = MONGODB_URI.split('/').pop();
-  
-  // mongodump 명령어 실행
-  exec(`mongodump --uri="${MONGODB_URI}" --out="${backupPath}"`, (error, stdout, stderr) => {
-    if (error) {
-      console.error('백업 실패:', error);
-      return;
-    }
-    console.log('백업 성공:', backupPath);
-    
-    // 30일 이상 된 백업 삭제
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    fs.readdir(backupDir, (err, files) => {
-      if (err) {
-        console.error('백업 폴더 읽기 실패:', err);
-        return;
-      }
-      
-      files.forEach(file => {
-        const filePath = path.join(backupDir, file);
-        fs.stat(filePath, (err, stats) => {
-          if (err) {
-            console.error('파일 정보 읽기 실패:', err);
-            return;
-          }
-          
-          if (stats.mtime < thirtyDaysAgo) {
-            fs.remove(filePath, err => {
-              if (err) console.error('오래된 백업 삭제 실패:', err);
-              else console.log('오래된 백업 삭제:', filePath);
-            });
-          }
-        });
-      });
-    });
-  });
-};
-
-// 매일 자정에 백업 실행
-cron.schedule('0 0 * * *', () => {
-  console.log('일일 백업 시작...');
-  performBackup();
-});
 
 // 스코어 데이터 스키마
 const scoreSchema = new mongoose.Schema({
