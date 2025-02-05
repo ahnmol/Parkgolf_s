@@ -78,6 +78,23 @@ app.get('/api/scores/:id', async (req, res) => {
   }
 });
 
+// 특정 대회 데이터 덮어쓰기
+app.put('/api/scores/:id', async (req, res) => {
+  try {
+    const updatedScore = await Score.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (!updatedScore) {
+      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    }
+    res.json(updatedScore);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
