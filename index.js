@@ -54,6 +54,30 @@ app.get('/api/scores', async (req, res) => {
   }
 });
 
+// 대회 목록 가져오기 API
+app.get('/api/tournaments', async (req, res) => {
+  try {
+    const tournaments = await Score.find({}, 'tournamentName createdAt')
+      .sort({ createdAt: -1 });
+    res.json(tournaments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 특정 대회 데이터 가져오기
+app.get('/api/scores/:id', async (req, res) => {
+  try {
+    const score = await Score.findById(req.params.id);
+    if (!score) {
+      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    }
+    res.json(score);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
