@@ -38,6 +38,7 @@ const Score = mongoose.model('Score', scoreSchema);
 // API 엔드포인트
 app.post('/api/scores', async (req, res) => {
   try {
+    console.log('서버에서 받은 데이터:', req.body);
     const newScore = new Score(req.body);
     await newScore.save();
     res.status(201).json(newScore);
@@ -58,7 +59,7 @@ app.get('/api/scores', async (req, res) => {
 // 대회 목록 가져오기 API
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const tournaments = await Score.find({}, 'tournamentName createdAt')
+    const tournaments = await Score.find({}, 'tournamentName division createdAt')
       .sort({ createdAt: -1 });
     res.json(tournaments);
   } catch (error) {
@@ -82,6 +83,7 @@ app.get('/api/scores/:id', async (req, res) => {
 // 특정 대회 데이터 덮어쓰기
 app.put('/api/scores/:id', async (req, res) => {
   try {
+    console.log('서버에서 받은 업데이트 데이터:', req.body);
     const updatedScore = await Score.findByIdAndUpdate(
       req.params.id,
       req.body,
