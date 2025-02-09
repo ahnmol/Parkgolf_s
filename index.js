@@ -55,12 +55,21 @@ app.post('/api/scores', async (req, res) => {
     if (!Array.isArray(req.body.rows)) {
       return res.status(400).json({ message: '선수 데이터 형식이 올바르지 않습니다.' });
     }
+    if (!req.body.totalDays || req.body.totalDays < 1) {
+      return res.status(400).json({ message: '대회 일수는 1 이상이어야 합니다.' });
+    }
     
     const newScore = new Score(req.body);
     await newScore.save();
     res.status(201).json(newScore);
   } catch (error) {
     console.error('저장 에러:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: '데이터 형식이 올바르지 않습니다.',
+        error: error.message 
+      });
+    }
     res.status(400).json({ 
       message: '데이터 저장 중 오류가 발생했습니다.',
       error: error.message 
@@ -120,6 +129,9 @@ app.put('/api/scores/:id', async (req, res) => {
     if (!Array.isArray(req.body.rows)) {
       return res.status(400).json({ message: '선수 데이터 형식이 올바르지 않습니다.' });
     }
+    if (!req.body.totalDays || req.body.totalDays < 1) {
+      return res.status(400).json({ message: '대회 일수는 1 이상이어야 합니다.' });
+    }
     
     const updatedScore = await Score.findByIdAndUpdate(
       req.params.id,
@@ -133,6 +145,12 @@ app.put('/api/scores/:id', async (req, res) => {
     res.json(updatedScore);
   } catch (error) {
     console.error('업데이트 에러:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: '데이터 형식이 올바르지 않습니다.',
+        error: error.message 
+      });
+    }
     res.status(500).json({ 
       message: '대회 데이터 업데이트 중 오류가 발생했습니다.',
       error: error.message 
