@@ -22,6 +22,7 @@ const scoreSchema = new mongoose.Schema({
   division: { type: String, enum: ['남성부', '여성부'], default: '남성부' },
   rows: [{
     group: String,
+    order: String,
     name: String,
     region: String,
     startCourse: String,
