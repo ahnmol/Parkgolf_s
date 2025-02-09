@@ -86,7 +86,7 @@ app.put('/api/scores/:id', async (req, res) => {
     console.log('서버에서 받은 업데이트 데이터:', req.body);
     const updatedScore = await Score.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { ...req.body, createdAt: new Date() },
       { new: true }
     );
     if (!updatedScore) {
