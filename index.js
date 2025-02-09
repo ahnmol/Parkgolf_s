@@ -25,6 +25,7 @@ const scoreSchema = new mongoose.Schema({
     name: String,
     region: String,
     startCourse: String,
+    order: { type: Number, default: 0 },
     courses: mongoose.Schema.Types.Mixed,
     total: Number
   }],
