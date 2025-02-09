@@ -17,20 +17,24 @@ mongoose.connect(MONGODB_URI)
 
 // 스코어 데이터 스키마
 const scoreSchema = new mongoose.Schema({
-  tournamentName: String,
-  courseColumns: [String],
+  tournamentName: { type: String, required: true },
+  courseColumns: { type: [String], required: true },
   division: { type: String, enum: ['남성부', '여성부'], default: '남성부' },
-  rows: [{
-    group: String,
-    order: String,
-    name: String,
-    region: String,
-    startCourse: String,
-    courses: mongoose.Schema.Types.Mixed,
-    total: Number
-  }],
-  totalDays: Number,
-  parData: mongoose.Schema.Types.Mixed,
+  rows: {
+    type: [{
+      group: { type: String, default: '' },
+      order: { type: String, default: '' },
+      name: { type: String, default: '' },
+      region: { type: String, default: '' },
+      startCourse: { type: String, default: '' },
+      courses: { type: mongoose.Schema.Types.Mixed, default: {} },
+      total: { type: Number, default: 0 }
+    }],
+    required: true,
+    default: []
+  },
+  totalDays: { type: Number, required: true, min: 1 },
+  parData: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -40,11 +44,27 @@ const Score = mongoose.model('Score', scoreSchema);
 app.post('/api/scores', async (req, res) => {
   try {
     console.log('서버에서 받은 데이터:', req.body);
+    
+    // 필수 필드 검증
+    if (!req.body.tournamentName) {
+      return res.status(400).json({ message: '대회 이름은 필수입니다.' });
+    }
+    if (!Array.isArray(req.body.courseColumns) || req.body.courseColumns.length === 0) {
+      return res.status(400).json({ message: '코스 정보는 필수입니다.' });
+    }
+    if (!Array.isArray(req.body.rows)) {
+      return res.status(400).json({ message: '선수 데이터 형식이 올바르지 않습니다.' });
+    }
+    
     const newScore = new Score(req.body);
     await newScore.save();
     res.status(201).json(newScore);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('저장 에러:', error);
+    res.status(400).json({ 
+      message: '데이터 저장 중 오류가 발생했습니다.',
+      error: error.message 
+    });
   }
 });
 
@@ -77,7 +97,11 @@ app.get('/api/scores/:id', async (req, res) => {
     }
     res.json(score);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('조회 에러:', error);
+    res.status(500).json({ 
+      message: '대회 데이터 조회 중 오류가 발생했습니다.',
+      error: error.message 
+    });
   }
 });
 
@@ -85,17 +109,34 @@ app.get('/api/scores/:id', async (req, res) => {
 app.put('/api/scores/:id', async (req, res) => {
   try {
     console.log('서버에서 받은 업데이트 데이터:', req.body);
+    
+    // 필수 필드 검증
+    if (!req.body.tournamentName) {
+      return res.status(400).json({ message: '대회 이름은 필수입니다.' });
+    }
+    if (!Array.isArray(req.body.courseColumns) || req.body.courseColumns.length === 0) {
+      return res.status(400).json({ message: '코스 정보는 필수입니다.' });
+    }
+    if (!Array.isArray(req.body.rows)) {
+      return res.status(400).json({ message: '선수 데이터 형식이 올바르지 않습니다.' });
+    }
+    
     const updatedScore = await Score.findByIdAndUpdate(
       req.params.id,
       { ...req.body, createdAt: new Date() },
-      { new: true }
+      { new: true, runValidators: true }
     );
+    
     if (!updatedScore) {
       return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
     }
     res.json(updatedScore);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('업데이트 에러:', error);
+    res.status(500).json({ 
+      message: '대회 데이터 업데이트 중 오류가 발생했습니다.',
+      error: error.message 
+    });
   }
 });
 
