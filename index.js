@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 require('dotenv').config();
+require('./backup/dbBackup');
+console.log('백업 시스템 초기화 완료: 백업 스케줄러가 등록되었습니다.');
 
 const app = express();
 
@@ -174,6 +176,4 @@ app.delete('/api/scores/:id', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-}); 
-
-require('./backup/dbBackup');
+});

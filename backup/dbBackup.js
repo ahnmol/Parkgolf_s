@@ -49,6 +49,8 @@ async function performBackup() {
 cron.schedule('0 3 * * *', () => {
     console.log('백업 시작:', new Date().toISOString());
     performBackup();
-});
+}, { timezone: 'Asia/Seoul' });
+
+console.log('백업 스케줄러 등록 완료: 한국 시간 기준 새벽 3시에 실행됩니다.');
 
 module.exports = { performBackup };
