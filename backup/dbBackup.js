@@ -1,11 +1,17 @@
 // parkgolf_server/backup/dbBackup.js
-
+require('dotenv').config();
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 
 // 메인 DB와 백업 DB의 연결 문자열
 const MAIN_DB_URI = process.env.MAIN_DB_URI;
 const BACKUP_DB_URI = process.env.BACKUP_DB_URI;
+
+// 환경 변수 체크
+if (!MAIN_DB_URI || !BACKUP_DB_URI) {
+    console.error('환경 변수가 설정되지 않았습니다. MAIN_DB_URI와 BACKUP_DB_URI를 확인해주세요.');
+    process.exit(1);
+}
 
 // 백업 함수
 async function performBackup() {
