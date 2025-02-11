@@ -37,6 +37,7 @@ const scoreSchema = new mongoose.Schema({
   },
   totalDays: { type: Number, required: true, min: 1 },
   parData: { type: mongoose.Schema.Types.Mixed, default: {} },
+  additionalTitle: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 
