@@ -15,18 +15,31 @@ if (!MAIN_DB_URI || !BACKUP_DB_URI) {
 
 // 백업 함수
 async function performBackup() {
+    let mainConn = null;
+    let backupConn = null;
+    
     try {
+        console.log('메인 DB 연결 시도...');
         // 메인 DB 연결
-        const mainConn = await mongoose.createConnection(MAIN_DB_URI);
+        mainConn = await mongoose.createConnection(MAIN_DB_URI).asPromise();
+        console.log('메인 DB 연결 성공');
         
+        console.log('백업 DB 연결 시도...');
         // 백업 DB 연결
-        const backupConn = await mongoose.createConnection(BACKUP_DB_URI);
+        backupConn = await mongoose.createConnection(BACKUP_DB_URI).asPromise();
+        console.log('백업 DB 연결 성공');
         
+        // 연결이 완료될 때까지 잠시 대기
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.log('컬렉션 목록 가져오기 시도...');
         // 모든 컬렉션 가져오기
         const collections = await mainConn.db.listCollections().toArray();
+        console.log(`총 ${collections.length}개의 컬렉션 발견`);
         
         for (const collection of collections) {
             const collectionName = collection.name;
+            console.log(`${collectionName} 백업 시작...`);
             
             // 기존 백업 데이터 삭제
             await backupConn.db.collection(collectionName).deleteMany({});
@@ -38,16 +51,24 @@ async function performBackup() {
             if (data.length > 0) {
                 await backupConn.db.collection(collectionName).insertMany(data);
                 console.log(`${collectionName} 백업 완료: ${data.length}개 문서`);
+            } else {
+                console.log(`${collectionName}에는 백업할 데이터가 없습니다.`);
             }
         }
-        
-        // 연결 종료
-        await mainConn.close();
-        await backupConn.close();
         
         console.log('전체 백업 완료:', new Date().toISOString());
     } catch (error) {
         console.error('백업 중 오류 발생:', error);
+    } finally {
+        // 연결 종료
+        if (mainConn) {
+            await mainConn.close();
+            console.log('메인 DB 연결 종료');
+        }
+        if (backupConn) {
+            await backupConn.close();
+            console.log('백업 DB 연결 종료');
+        }
     }
 }
 
