@@ -92,7 +92,7 @@ app.get('/api/scores', async (req, res) => {
 // 대회 목록 가져오기 API
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const tournaments = await Score.find({}, 'tournamentName division createdAt')
+    const tournaments = await Score.find({}, 'tournamentName division additionalTitle createdAt')
       .sort({ createdAt: -1 });
     res.json(tournaments);
   } catch (error) {
