@@ -57,6 +57,10 @@ cron.schedule('0 3 * * *', () => {
     performBackup();
 }, { timezone: 'Asia/Seoul' });
 
+// 서비스 시작 시 즉시 백업 실행
+console.log('서비스 시작 시 초기 백업 실행:', new Date().toISOString());
+performBackup();
+
 console.log('백업 스케줄러 등록 완료: 한국 시간 기준 새벽 3시에 실행됩니다.');
 
 module.exports = { performBackup };
