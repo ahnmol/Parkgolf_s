@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 require('./backup/dbBackup');
 console.log('백업 시스템 초기화 완료: 백업 스케줄러가 등록되었습니다.');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
