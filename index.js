@@ -21,7 +21,7 @@ mongoose.connect(MONGODB_URI)
 const scoreSchema = new mongoose.Schema({
   tournamentName: { type: String, required: true },
   courseColumns: { type: [String], required: true },
-  division: { type: String, enum: ['남성부', '여성부'], default: '남성부' },
+  division: { type: String, default: '일반부' },
   rows: {
     type: [{
       group: { type: String, default: '' },
