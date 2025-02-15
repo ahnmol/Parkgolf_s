@@ -284,13 +284,16 @@ app.put('/api/scores/:id/move', async (req, res) => {
       }
     }
 
-    // 대회 이동
-    score.folderId = folderId || null;
-    await score.save({ session });
+    // 대회 이동 (folderId 업데이트)
+    const updatedScore = await Score.findByIdAndUpdate(
+      req.params.id,
+      { folderId: folderId || null },
+      { new: true, session }
+    );
 
     // 트랜잭션 커밋
     await session.commitTransaction();
-    res.json(score);
+    res.json(updatedScore);
   } catch (error) {
     // 에러 발생 시 롤백
     await session.abortTransaction();
