@@ -103,7 +103,12 @@ app.get('/api/scores', async (req, res) => {
 app.get('/api/tournaments', async (req, res) => {
   try {
     const { folderId } = req.query;
-    const query = folderId ? { folderId } : {};
+    let query = {};
+    if (folderId === "null") {
+      query = { folderId: null };
+    } else if (folderId) {
+      query = { folderId };
+    }
     const tournaments = await Score.find(query, 'tournamentName division additionalTitle createdAt folderId')
       .sort({ createdAt: -1 });
     res.json(tournaments);
