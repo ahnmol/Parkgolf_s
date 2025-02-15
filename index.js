@@ -71,8 +71,20 @@ app.post('/api/scores', async (req, res) => {
     if (!req.body.totalDays || req.body.totalDays < 1) {
       return res.status(400).json({ message: '대회 일수는 1 이상이어야 합니다.' });
     }
+
+    // folderId 처리
+    const data = { ...req.body };
+    if (data.folderId) {
+      try {
+        data.folderId = new mongoose.Types.ObjectId(data.folderId);
+      } catch (error) {
+        data.folderId = null;
+      }
+    } else {
+      data.folderId = null;
+    }
     
-    const newScore = new Score(req.body);
+    const newScore = new Score(data);
     await newScore.save();
     res.status(201).json(newScore);
   } catch (error) {
