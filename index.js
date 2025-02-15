@@ -17,6 +17,15 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB 연결 성공'))
   .catch(err => console.error('MongoDB 연결 실패:', err));
 
+// 폴더 스키마
+const folderSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  parentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Folder = mongoose.model('Folder', folderSchema);
+
 // 스코어 데이터 스키마
 const scoreSchema = new mongoose.Schema({
   tournamentName: { type: String, required: true },
@@ -38,6 +47,7 @@ const scoreSchema = new mongoose.Schema({
   totalDays: { type: Number, required: true, min: 1 },
   parData: { type: mongoose.Schema.Types.Mixed, default: {} },
   additionalTitle: { type: String, default: '' },
+  folderId: { type: mongoose.Schema.Types.ObjectId, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -92,7 +102,9 @@ app.get('/api/scores', async (req, res) => {
 // 대회 목록 가져오기 API
 app.get('/api/tournaments', async (req, res) => {
   try {
-    const tournaments = await Score.find({}, 'tournamentName division additionalTitle createdAt')
+    const { folderId } = req.query;
+    const query = folderId ? { folderId } : {};
+    const tournaments = await Score.find(query, 'tournamentName division additionalTitle createdAt folderId')
       .sort({ createdAt: -1 });
     res.json(tournaments);
   } catch (error) {
@@ -169,6 +181,104 @@ app.delete('/api/scores/:id', async (req, res) => {
       return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
     }
     res.json({ message: '대회가 성공적으로 삭제되었습니다.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 폴더 생성
+app.post('/api/folders', async (req, res) => {
+  try {
+    const { name, parentId } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: '폴더 이름은 필수입니다.' });
+    }
+    
+    const newFolder = new Folder({ name, parentId });
+    await newFolder.save();
+    res.status(201).json(newFolder);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 폴더 목록 조회
+app.get('/api/folders', async (req, res) => {
+  try {
+    const folders = await Folder.find().sort({ createdAt: 1 });
+    res.json(folders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 폴더 삭제 (하위 폴더와 대회도 함께 삭제)
+app.delete('/api/folders/:id', async (req, res) => {
+  try {
+    const folderId = req.params.id;
+    
+    // 재귀적으로 하위 폴더 ID들을 수집하는 함수
+    async function getSubFolderIds(parentId) {
+      const folders = await Folder.find({ parentId });
+      let ids = [parentId];
+      for (const folder of folders) {
+        ids = [...ids, ...(await getSubFolderIds(folder._id))];
+      }
+      return ids;
+    }
+    
+    // 삭제할 모든 폴더 ID 수집
+    const folderIds = await getSubFolderIds(folderId);
+    
+    // 해당 폴더들에 속한 대회들 삭제
+    await Score.deleteMany({ folderId: { $in: folderIds } });
+    
+    // 폴더들 삭제
+    await Folder.deleteMany({ _id: { $in: folderIds } });
+    
+    res.json({ message: '폴더가 성공적으로 삭제되었습니다.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 대회 이동
+app.put('/api/scores/:id/move', async (req, res) => {
+  try {
+    const { folderId } = req.body;
+    const updatedScore = await Score.findByIdAndUpdate(
+      req.params.id,
+      { folderId },
+      { new: true }
+    );
+    if (!updatedScore) {
+      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    }
+    res.json(updatedScore);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 폴더 이름 변경
+app.put('/api/folders/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: '폴더 이름은 필수입니다.' });
+    }
+    
+    const updatedFolder = await Folder.findByIdAndUpdate(
+      req.params.id,
+      { name },
+      { new: true }
+    );
+    
+    if (!updatedFolder) {
+      return res.status(404).json({ message: '폴더를 찾을 수 없습니다.' });
+    }
+    
+    res.json(updatedFolder);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
