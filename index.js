@@ -131,34 +131,41 @@ app.get('/api/scores/:id', async (req, res) => {
 
 // 특정 대회 데이터 덮어쓰기
 app.put('/api/scores/:id', async (req, res) => {
+  // 트랜잭션 시작
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     console.log('서버에서 받은 업데이트 데이터:', req.body);
     
     // 필수 필드 검증
     if (!req.body.tournamentName) {
-      return res.status(400).json({ message: '대회 이름은 필수입니다.' });
+      throw new Error('대회 이름은 필수입니다.');
     }
     if (!Array.isArray(req.body.courseColumns) || req.body.courseColumns.length === 0) {
-      return res.status(400).json({ message: '코스 정보는 필수입니다.' });
+      throw new Error('코스 정보는 필수입니다.');
     }
     if (!Array.isArray(req.body.rows)) {
-      return res.status(400).json({ message: '선수 데이터 형식이 올바르지 않습니다.' });
+      throw new Error('선수 데이터 형식이 올바르지 않습니다.');
     }
     if (!req.body.totalDays || req.body.totalDays < 1) {
-      return res.status(400).json({ message: '대회 일수는 1 이상이어야 합니다.' });
+      throw new Error('대회 일수는 1 이상이어야 합니다.');
     }
     
-    const updatedScore = await Score.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, createdAt: new Date() },
-      { new: true, runValidators: true }
-    );
-    
-    if (!updatedScore) {
-      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    const score = await Score.findById(req.params.id).session(session);
+    if (!score) {
+      throw new Error('대회를 찾을 수 없습니다.');
     }
-    res.json(updatedScore);
+
+    Object.assign(score, { ...req.body, createdAt: new Date() });
+    await score.save({ session });
+    
+    // 트랜잭션 커밋
+    await session.commitTransaction();
+    res.json(score);
   } catch (error) {
+    // 에러 발생 시 롤백
+    await session.abortTransaction();
     console.error('업데이트 에러:', error);
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
@@ -166,10 +173,11 @@ app.put('/api/scores/:id', async (req, res) => {
         error: error.message 
       });
     }
-    res.status(500).json({ 
-      message: '대회 데이터 업데이트 중 오류가 발생했습니다.',
-      error: error.message 
+    res.status(error.message.includes('찾을 수 없습니다') ? 404 : 500).json({ 
+      message: error.message || '대회 데이터 업데이트 중 오류가 발생했습니다.'
     });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -214,12 +222,16 @@ app.get('/api/folders', async (req, res) => {
 
 // 폴더 삭제 (하위 폴더와 대회도 함께 삭제)
 app.delete('/api/folders/:id', async (req, res) => {
+  // 트랜잭션 시작
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const folderId = req.params.id;
     
     // 재귀적으로 하위 폴더 ID들을 수집하는 함수
     async function getSubFolderIds(parentId) {
-      const folders = await Folder.find({ parentId });
+      const folders = await Folder.find({ parentId }).session(session);
       let ids = [parentId];
       for (const folder of folders) {
         ids = [...ids, ...(await getSubFolderIds(folder._id))];
@@ -231,56 +243,96 @@ app.delete('/api/folders/:id', async (req, res) => {
     const folderIds = await getSubFolderIds(folderId);
     
     // 해당 폴더들에 속한 대회들 삭제
-    await Score.deleteMany({ folderId: { $in: folderIds } });
+    await Score.deleteMany({ folderId: { $in: folderIds } }).session(session);
     
     // 폴더들 삭제
-    await Folder.deleteMany({ _id: { $in: folderIds } });
+    await Folder.deleteMany({ _id: { $in: folderIds } }).session(session);
     
+    // 트랜잭션 커밋
+    await session.commitTransaction();
     res.json({ message: '폴더가 성공적으로 삭제되었습니다.' });
   } catch (error) {
+    // 에러 발생 시 롤백
+    await session.abortTransaction();
+    console.error('폴더 삭제 에러:', error);
     res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
 // 대회 이동
 app.put('/api/scores/:id/move', async (req, res) => {
+  // 트랜잭션 시작
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { folderId } = req.body;
-    const updatedScore = await Score.findByIdAndUpdate(
-      req.params.id,
-      { folderId },
-      { new: true }
-    );
-    if (!updatedScore) {
-      return res.status(404).json({ message: '대회를 찾을 수 없습니다.' });
+    
+    // 이동할 대회가 존재하는지 확인
+    const score = await Score.findById(req.params.id).session(session);
+    if (!score) {
+      throw new Error('대회를 찾을 수 없습니다.');
     }
-    res.json(updatedScore);
+
+    // 대상 폴더가 존재하는지 확인 (루트로 이동하는 경우 제외)
+    if (folderId) {
+      const targetFolder = await Folder.findById(folderId).session(session);
+      if (!targetFolder) {
+        throw new Error('대상 폴더를 찾을 수 없습니다.');
+      }
+    }
+
+    // 대회 이동
+    score.folderId = folderId || null;
+    await score.save({ session });
+
+    // 트랜잭션 커밋
+    await session.commitTransaction();
+    res.json(score);
   } catch (error) {
+    // 에러 발생 시 롤백
+    await session.abortTransaction();
+    console.error('대회 이동 에러:', error);
     res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
 // 폴더 이름 변경
 app.put('/api/folders/:id', async (req, res) => {
+  // 트랜잭션 시작
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { name } = req.body;
     if (!name) {
-      return res.status(400).json({ message: '폴더 이름은 필수입니다.' });
+      throw new Error('폴더 이름은 필수입니다.');
     }
     
-    const updatedFolder = await Folder.findByIdAndUpdate(
-      req.params.id,
-      { name },
-      { new: true }
-    );
-    
-    if (!updatedFolder) {
-      return res.status(404).json({ message: '폴더를 찾을 수 없습니다.' });
+    const folder = await Folder.findById(req.params.id).session(session);
+    if (!folder) {
+      throw new Error('폴더를 찾을 수 없습니다.');
     }
+
+    folder.name = name;
+    await folder.save({ session });
     
-    res.json(updatedFolder);
+    // 트랜잭션 커밋
+    await session.commitTransaction();
+    res.json(folder);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    // 에러 발생 시 롤백
+    await session.abortTransaction();
+    console.error('폴더 이름 변경 에러:', error);
+    res.status(error.message.includes('찾을 수 없습니다') ? 404 : 500).json({ 
+      message: error.message || '폴더 이름 변경 중 오류가 발생했습니다.'
+    });
+  } finally {
+    session.endSession();
   }
 });
 
