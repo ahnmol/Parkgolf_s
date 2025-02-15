@@ -116,7 +116,7 @@ app.get('/api/tournaments', async (req, res) => {
   try {
     const { folderId } = req.query;
     let query = {};
-    if (folderId === "null") {
+    if (folderId === "null" || folderId === "home") {
       query = { folderId: null };
     } else if (folderId) {
       try {
