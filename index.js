@@ -116,19 +116,30 @@ app.get('/api/tournaments', async (req, res) => {
   try {
     const { folderId } = req.query;
     let query = {};
-    if (folderId === "null" || folderId === "home") {
+    
+    // home이거나 null인 경우 루트 폴더의 대회만 반환
+    if (folderId === "home" || folderId === "null") {
       query = { folderId: null };
-    } else if (folderId) {
+    } 
+    // 특정 폴더의 대회를 반환
+    else if (folderId) {
       try {
-        query = { folderId: mongoose.Types.ObjectId(folderId) };
+        const folderObjectId = new mongoose.Types.ObjectId(folderId);
+        query = { folderId: folderObjectId };
       } catch (err) {
-        query = { folderId: null };
+        return res.status(400).json({ message: '잘못된 폴더 ID 형식입니다.' });
       }
     }
+    // folderId가 제공되지 않은 경우 빈 배열 반환
+    else {
+      return res.json([]);
+    }
+
     const tournaments = await Score.find(query, 'tournamentName division additionalTitle createdAt folderId')
       .sort({ createdAt: -1 });
     res.json(tournaments);
   } catch (error) {
+    console.error('대회 목록 조회 에러:', error);
     res.status(500).json({ message: error.message });
   }
 });
