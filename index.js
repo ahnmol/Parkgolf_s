@@ -119,7 +119,11 @@ app.get('/api/tournaments', async (req, res) => {
     if (folderId === "null") {
       query = { folderId: null };
     } else if (folderId) {
-      query = { folderId };
+      try {
+        query = { folderId: mongoose.Types.ObjectId(folderId) };
+      } catch (err) {
+        query = { folderId: null };
+      }
     }
     const tournaments = await Score.find(query, 'tournamentName division additionalTitle createdAt folderId')
       .sort({ createdAt: -1 });
