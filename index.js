@@ -7,8 +7,22 @@ console.log('백업 시스템 초기화 완료: 백업 스케줄러가 등록되
 
 const app = express();
 
-// 미들웨어 설정
-app.use(cors());
+// CORS 설정
+const corsOptions = {
+    origin: [
+        'https://pkgolf.kr',
+        'http://pkgolf.kr',
+        'https://www.pkgolf.kr',
+        'http://www.pkgolf.kr',
+        'http://localhost:3000'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    credentials: true,
+    maxAge: 86400 // CORS 프리플라이트 요청 캐시 시간 (24시간)
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB 연결
