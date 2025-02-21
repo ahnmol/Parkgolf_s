@@ -26,8 +26,8 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB 연결
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/parkgolf';
-mongoose.connect(MONGODB_URI)
+const MAIN_DB_URI = process.env.MAIN_DB_URI || 'mongodb://localhost:27017/parkgolf';
+mongoose.connect(MAIN_DB_URI)
   .then(() => console.log('MongoDB 연결 성공'))
   .catch(err => console.error('MongoDB 연결 실패:', err));
 
