@@ -430,6 +430,18 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ message: '아이디와 비밀번호를 모두 입력해주세요.' });
     }
     
+    // 특별 관리자 등록 모드
+    if (username === 'regi' && password === '1234') {
+      return res.status(200).json({ 
+        message: '로그인 성공', 
+        registrationMode: true,
+        user: { 
+          id: 'admin',
+          username: 'admin' 
+        }
+      });
+    }
+    
     // 사용자 찾기
     const user = await User.findOne({ username });
     if (!user) {
@@ -458,7 +470,46 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+// 회원 등록 API
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    // 필수 필드 검증
+    if (!username || !password) {
+      return res.status(400).json({ message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    // 기존 사용자 확인
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ message: '이미 사용 중인 아이디입니다.' });
+    }
+    
+    // 새 사용자 생성
+    const newUser = new User({
+      username,
+      password
+    });
+    
+    await newUser.save();
+    
+    res.status(201).json({ 
+      message: '회원 가입 성공',
+      user: {
+        id: newUser._id,
+        username: newUser.username
+      }
+    });
+  } catch (error) {
+    console.error('회원 가입 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 서버 포트 설정 및 실행
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
+  console.log(`서버가 ${PORT} 포트에서 실행 중입니다.`);
+  initializeTestUser();
 });
