@@ -31,6 +31,36 @@ mongoose.connect(MAIN_DB_URI)
   .then(() => console.log('MongoDB 연결 성공'))
   .catch(err => console.error('MongoDB 연결 실패:', err));
 
+// 사용자 스키마
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// 테스트 계정 초기화
+const initializeTestUser = async () => {
+  try {
+    // 테스트 계정이 이미 존재하는지 확인
+    const existingUser = await User.findOne({ username: 'test' });
+    if (!existingUser) {
+      // 테스트 계정 생성
+      const testUser = new User({
+        username: 'test',
+        password: '1234'
+      });
+      await testUser.save();
+      console.log('테스트 계정 생성 완료');
+    } else {
+      console.log('테스트 계정이 이미 존재합니다');
+    }
+  } catch (error) {
+    console.error('테스트 계정 초기화 오류:', error);
+  }
+};
+
 // 폴더 스키마
 const folderSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -66,6 +96,11 @@ const scoreSchema = new mongoose.Schema({
 });
 
 const Score = mongoose.model('Score', scoreSchema);
+
+// 테스트 계정 초기화 실행
+mongoose.connection.once('open', () => {
+  initializeTestUser();
+});
 
 // API 엔드포인트
 app.post('/api/scores', async (req, res) => {
@@ -382,6 +417,44 @@ app.put('/api/folders/:id', async (req, res) => {
     });
   } finally {
     session.endSession();
+  }
+});
+
+// 로그인 API
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    // 필수 필드 검증
+    if (!username || !password) {
+      return res.status(400).json({ message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    // 사용자 찾기
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    
+    // 비밀번호 확인
+    if (user.password !== password) {
+      return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    
+    // 로그인 성공
+    res.status(200).json({ 
+      message: '로그인 성공', 
+      user: { 
+        id: user._id,
+        username: user.username 
+      }
+    });
+  } catch (error) {
+    console.error('로그인 오류:', error);
+    res.status(500).json({ 
+      message: '로그인 중 오류가 발생했습니다.',
+      error: error.message 
+    });
   }
 });
 
