@@ -27,11 +27,33 @@ app.use(express.json({ limit: '50mb' }));
 
 // MongoDB 연결
 const MAIN_DB_URI = process.env.MAIN_DB_URI || 'mongodb://localhost:27017/parkgolf';
-mongoose.connect(MAIN_DB_URI)
+console.log('MongoDB URI 확인 (민감 정보 제외):', MAIN_DB_URI.replace(/mongodb\+srv:\/\/([^:]+):([^@]+)@/, 'mongodb+srv://***:***@'));
+
+// 향상된 mongoose 연결 옵션
+mongoose.connect(MAIN_DB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 15000, // 서버 선택 타임아웃
+  socketTimeoutMS: 45000, // 소켓 타임아웃
+})
   .then(() => {
     console.log('MongoDB 연결 성공');
   })
-  .catch(err => console.error('MongoDB 연결 실패:', err));
+  .catch(err => {
+    console.error('MongoDB 연결 실패:', err.message);
+    // 연결 실패 시에도 서버는 계속 실행
+    console.log('MongoDB 연결 없이 서버 시작...');
+  });
+
+// 연결 에러 이벤트 처리
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB 연결 에러 발생:', err.message);
+});
+
+// 재연결 이벤트 처리
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB에 재연결되었습니다.');
+});
 
 // 사용자 스키마
 const userSchema = new mongoose.Schema({
@@ -45,6 +67,13 @@ const User = mongoose.model('User', userSchema);
 // 테스트 사용자 생성 함수
 async function createTestUser() {
   try {
+    // mongoose 연결 확인
+    if (mongoose.connection.readyState !== 1) {
+      console.log('MongoDB 연결이 준비되지 않아 테스트 사용자 생성을 건너뜁니다.');
+      return;
+    }
+
+    console.log('테스트 사용자 확인 중...');
     // 기존 테스트 사용자가 있는지 확인
     const existingUser = await User.findOne({ username: 'test' });
     
@@ -53,6 +82,7 @@ async function createTestUser() {
       return;
     }
     
+    console.log('테스트 사용자 생성 시작...');
     // 새 테스트 사용자 생성
     const testUser = new User({
       username: 'test',
@@ -62,13 +92,15 @@ async function createTestUser() {
     await testUser.save();
     console.log('테스트 사용자가 성공적으로 생성되었습니다.');
   } catch (error) {
-    console.error('테스트 사용자 생성 중 오류 발생:', error);
+    console.error('테스트 사용자 생성 중 오류 발생:', error.message);
+    console.error('오류 상세:', error.stack);
   }
 }
 
-// MongoDB 연결 성공 시 테스트 사용자 생성 실행
+// MongoDB 연결 성공 시 테스트 사용자 생성 실행 - 약간의 지연을 두어 안정성 확보
 mongoose.connection.once('open', () => {
-  createTestUser();
+  console.log('MongoDB 연결이 열렸습니다. 5초 후 테스트 사용자를 확인합니다.');
+  setTimeout(createTestUser, 5000);
 });
 
 // 폴더 스키마
@@ -476,6 +508,36 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
 });
+
+// 예상치 못한 오류 처리
+process.on('uncaughtException', (error) => {
+  console.error('예상치 못한 예외 발생:', error.message);
+  console.error(error.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('처리되지 않은 Promise 거부:', reason);
+});
+// 정상적인 종료 처리
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+function gracefulShutdown() {
+  console.log('서버 종료 중...');
+  server.close(() => {
+    console.log('서버가 종료되었습니다.');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB 연결이 종료되었습니다.');
+      process.exit(0);
+    });
+  });
+  
+  // 강제 종료 타임아웃 설정 (10초 후 강제 종료)
+  setTimeout(() => {
+    console.error('서버가 10초 내에 정상 종료되지 않아 강제 종료합니다.');
+    process.exit(1);
+  }, 10000);
+}
