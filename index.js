@@ -7,9 +7,15 @@ console.log('백업 시스템 초기화 완료: 백업 스케줄러가 등록되
 
 const app = express();
 
-// CORS 설정 - 모든 도메인 허용 (임시 디버깅용)
+// CORS 설정
 const corsOptions = {
-    origin: '*', // 모든 도메인에서의 요청 허용 (임시)
+    origin: [
+        'https://pkgolf.kr',
+        'http://pkgolf.kr',
+        'https://www.pkgolf.kr',
+        'http://www.pkgolf.kr',
+        'http://localhost:3000'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
@@ -21,81 +27,9 @@ app.use(express.json({ limit: '50mb' }));
 
 // MongoDB 연결
 const MAIN_DB_URI = process.env.MAIN_DB_URI || 'mongodb://localhost:27017/parkgolf';
-console.log('MongoDB URI 확인 (민감 정보 제외):', MAIN_DB_URI.replace(/mongodb\+srv:\/\/([^:]+):([^@]+)@/, 'mongodb+srv://***:***@'));
-
-// 향상된 mongoose 연결 옵션
-mongoose.connect(MAIN_DB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 15000, // 서버 선택 타임아웃
-  socketTimeoutMS: 45000, // 소켓 타임아웃
-})
-  .then(() => {
-    console.log('MongoDB 연결 성공');
-  })
-  .catch(err => {
-    console.error('MongoDB 연결 실패:', err.message);
-    // 연결 실패 시에도 서버는 계속 실행
-    console.log('MongoDB 연결 없이 서버 시작...');
-  });
-
-// 연결 에러 이벤트 처리
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB 연결 에러 발생:', err.message);
-});
-
-// 재연결 이벤트 처리
-mongoose.connection.on('reconnected', () => {
-  console.log('MongoDB에 재연결되었습니다.');
-});
-
-// 사용자 스키마
-const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const User = mongoose.model('User', userSchema);
-
-// 테스트 사용자 생성 함수
-async function createTestUser() {
-  try {
-    // mongoose 연결 확인
-    if (mongoose.connection.readyState !== 1) {
-      console.log('MongoDB 연결이 준비되지 않아 테스트 사용자 생성을 건너뜁니다.');
-      return;
-    }
-
-    console.log('테스트 사용자 확인 중...');
-    // 기존 테스트 사용자가 있는지 확인
-    const existingUser = await User.findOne({ username: 'test' });
-    
-    if (existingUser) {
-      console.log('테스트 사용자가 이미 존재합니다.');
-      return;
-    }
-    
-    console.log('테스트 사용자 생성 시작...');
-    // 새 테스트 사용자 생성
-    const testUser = new User({
-      username: 'test',
-      password: '1234'
-    });
-    
-    await testUser.save();
-    console.log('테스트 사용자가 성공적으로 생성되었습니다.');
-  } catch (error) {
-    console.error('테스트 사용자 생성 중 오류 발생:', error.message);
-    console.error('오류 상세:', error.stack);
-  }
-}
-
-// MongoDB 연결 성공 시 테스트 사용자 생성 실행 - 약간의 지연을 두어 안정성 확보
-mongoose.connection.once('open', () => {
-  console.log('MongoDB 연결이 열렸습니다. 5초 후 테스트 사용자를 확인합니다.');
-  setTimeout(createTestUser, 5000);
-});
+mongoose.connect(MAIN_DB_URI)
+  .then(() => console.log('MongoDB 연결 성공'))
+  .catch(err => console.error('MongoDB 연결 실패:', err));
 
 // 폴더 스키마
 const folderSchema = new mongoose.Schema({
@@ -451,113 +385,7 @@ app.put('/api/folders/:id', async (req, res) => {
   }
 });
 
-// 인증 API 엔드포인트
-app.post('/api/auth/login', async (req, res) => {
-  console.log('로그인 요청 받음:', new Date().toISOString());
-  console.log('요청 본문:', JSON.stringify(req.body));
-  
-  try {
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-      console.log('입력 누락: 아이디 또는 비밀번호 없음');
-      return res.status(400).json({ success: false, message: '아이디와 비밀번호를 모두 입력해주세요.' });
-    }
-    
-    console.log(`사용자 조회 시도: ${username}`);
-    
-    // mongoose 연결 상태 확인
-    if (mongoose.connection.readyState !== 1) {
-      console.error('데이터베이스 연결 상태 불량:', mongoose.connection.readyState);
-      return res.status(500).json({ success: false, message: '데이터베이스 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.' });
-    }
-    
-    const user = await User.findOne({ username });
-    
-    if (!user) {
-      console.log(`사용자 없음: ${username}`);
-      return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-    }
-    
-    if (user.password !== password) {
-      console.log(`비밀번호 불일치: ${username}`);
-      return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-    }
-    
-    console.log(`로그인 성공: ${username}`);
-    res.status(200).json({ success: true, message: '로그인 성공', user: { username: user.username } });
-  } catch (error) {
-    console.error('로그인 에러:', error);
-    console.error('에러 상세 정보:', error.stack);
-    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
-  }
-});
-
-// 사용자 등록 API 엔드포인트 (관리 목적)
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-      return res.status(400).json({ success: false, message: '아이디와 비밀번호를 모두 입력해주세요.' });
-    }
-    
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
-    }
-    
-    const newUser = new User({ username, password });
-    await newUser.save();
-    
-    res.status(201).json({ success: true, message: '사용자가 등록되었습니다.', user: { username: newUser.username } });
-  } catch (error) {
-    console.error('사용자 등록 에러:', error);
-    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
-  }
-});
-
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-  console.log(`환경: ${process.env.NODE_ENV || '개발'}`);
-  console.log(`API 엔드포인트 URL: ${process.env.PUBLIC_URL || 'http://localhost:' + PORT}`);
-  console.log(`MongoDB 연결 상태: ${mongoose.connection.readyState === 1 ? '연결됨' : '연결되지 않음'}`);
-  console.log(`현재 시간: ${new Date().toISOString()}`);
-  console.log('사용 가능한 라우트:');
-  console.log('- POST /api/auth/login');
-  console.log('- POST /api/auth/register');
-  console.log('- POST /api/scores');
-  console.log('- GET /api/scores');
-  console.log('- GET /api/tournaments');
 });
-
-// 예상치 못한 오류 처리
-process.on('uncaughtException', (error) => {
-  console.error('예상치 못한 예외 발생:', error.message);
-  console.error(error.stack);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('처리되지 않은 Promise 거부:', reason);
-});
-// 정상적인 종료 처리
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
-
-function gracefulShutdown() {
-  console.log('서버 종료 중...');
-  server.close(() => {
-    console.log('서버가 종료되었습니다.');
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB 연결이 종료되었습니다.');
-      process.exit(0);
-    });
-  });
-  
-  // 강제 종료 타임아웃 설정 (10초 후 강제 종료)
-  setTimeout(() => {
-    console.error('서버가 10초 내에 정상 종료되지 않아 강제 종료합니다.');
-    process.exit(1);
-  }, 10000);
-}
