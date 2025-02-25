@@ -458,6 +458,46 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// 새로운 계정 추가 API
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    // 필수 필드 검증
+    if (!username || !password) {
+      return res.status(400).json({ message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    // 이미 존재하는 사용자인지 확인
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ message: '이미 존재하는 아이디입니다.' });
+    }
+    
+    // 새 사용자 생성
+    const newUser = new User({
+      username,
+      password
+    });
+    
+    await newUser.save();
+    
+    res.status(201).json({ 
+      message: '계정이 성공적으로 생성되었습니다.',
+      user: {
+        id: newUser._id,
+        username: newUser.username
+      }
+    });
+  } catch (error) {
+    console.error('계정 생성 오류:', error);
+    res.status(500).json({ 
+      message: '계정 생성 중 오류가 발생했습니다.',
+      error: error.message 
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
