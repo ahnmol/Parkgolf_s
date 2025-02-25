@@ -7,15 +7,9 @@ console.log('백업 시스템 초기화 완료: 백업 스케줄러가 등록되
 
 const app = express();
 
-// CORS 설정
+// CORS 설정 - 모든 도메인 허용 (임시 디버깅용)
 const corsOptions = {
-    origin: [
-        'https://pkgolf.kr',
-        'http://pkgolf.kr',
-        'https://www.pkgolf.kr',
-        'http://www.pkgolf.kr',
-        'http://localhost:3000'
-    ],
+    origin: '*', // 모든 도메인에서의 요청 허용 (임시)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
@@ -459,26 +453,42 @@ app.put('/api/folders/:id', async (req, res) => {
 
 // 인증 API 엔드포인트
 app.post('/api/auth/login', async (req, res) => {
+  console.log('로그인 요청 받음:', new Date().toISOString());
+  console.log('요청 본문:', JSON.stringify(req.body));
+  
   try {
     const { username, password } = req.body;
     
     if (!username || !password) {
+      console.log('입력 누락: 아이디 또는 비밀번호 없음');
       return res.status(400).json({ success: false, message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    console.log(`사용자 조회 시도: ${username}`);
+    
+    // mongoose 연결 상태 확인
+    if (mongoose.connection.readyState !== 1) {
+      console.error('데이터베이스 연결 상태 불량:', mongoose.connection.readyState);
+      return res.status(500).json({ success: false, message: '데이터베이스 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.' });
     }
     
     const user = await User.findOne({ username });
     
     if (!user) {
+      console.log(`사용자 없음: ${username}`);
       return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
     }
     
     if (user.password !== password) {
+      console.log(`비밀번호 불일치: ${username}`);
       return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
     }
     
+    console.log(`로그인 성공: ${username}`);
     res.status(200).json({ success: true, message: '로그인 성공', user: { username: user.username } });
   } catch (error) {
     console.error('로그인 에러:', error);
+    console.error('에러 상세 정보:', error.stack);
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -510,6 +520,16 @@ app.post('/api/auth/register', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
+  console.log(`환경: ${process.env.NODE_ENV || '개발'}`);
+  console.log(`API 엔드포인트 URL: ${process.env.PUBLIC_URL || 'http://localhost:' + PORT}`);
+  console.log(`MongoDB 연결 상태: ${mongoose.connection.readyState === 1 ? '연결됨' : '연결되지 않음'}`);
+  console.log(`현재 시간: ${new Date().toISOString()}`);
+  console.log('사용 가능한 라우트:');
+  console.log('- POST /api/auth/login');
+  console.log('- POST /api/auth/register');
+  console.log('- POST /api/scores');
+  console.log('- GET /api/scores');
+  console.log('- GET /api/tournaments');
 });
 
 // 예상치 못한 오류 처리
