@@ -28,8 +28,48 @@ app.use(express.json({ limit: '50mb' }));
 // MongoDB 연결
 const MAIN_DB_URI = process.env.MAIN_DB_URI || 'mongodb://localhost:27017/parkgolf';
 mongoose.connect(MAIN_DB_URI)
-  .then(() => console.log('MongoDB 연결 성공'))
+  .then(() => {
+    console.log('MongoDB 연결 성공');
+  })
   .catch(err => console.error('MongoDB 연결 실패:', err));
+
+// 사용자 스키마
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// 테스트 사용자 생성 함수
+async function createTestUser() {
+  try {
+    // 기존 테스트 사용자가 있는지 확인
+    const existingUser = await User.findOne({ username: 'test' });
+    
+    if (existingUser) {
+      console.log('테스트 사용자가 이미 존재합니다.');
+      return;
+    }
+    
+    // 새 테스트 사용자 생성
+    const testUser = new User({
+      username: 'test',
+      password: '1234'
+    });
+    
+    await testUser.save();
+    console.log('테스트 사용자가 성공적으로 생성되었습니다.');
+  } catch (error) {
+    console.error('테스트 사용자 생성 중 오류 발생:', error);
+  }
+}
+
+// MongoDB 연결 성공 시 테스트 사용자 생성 실행
+mongoose.connection.once('open', () => {
+  createTestUser();
+});
 
 // 폴더 스키마
 const folderSchema = new mongoose.Schema({
@@ -382,6 +422,56 @@ app.put('/api/folders/:id', async (req, res) => {
     });
   } finally {
     session.endSession();
+  }
+});
+
+// 인증 API 엔드포인트
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    const user = await User.findOne({ username });
+    
+    if (!user) {
+      return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    
+    if (user.password !== password) {
+      return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+    }
+    
+    res.status(200).json({ success: true, message: '로그인 성공', user: { username: user.username } });
+  } catch (error) {
+    console.error('로그인 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 사용자 등록 API 엔드포인트 (관리 목적)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: '아이디와 비밀번호를 모두 입력해주세요.' });
+    }
+    
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
+    }
+    
+    const newUser = new User({ username, password });
+    await newUser.save();
+    
+    res.status(201).json({ success: true, message: '사용자가 등록되었습니다.', user: { username: newUser.username } });
+  } catch (error) {
+    console.error('사용자 등록 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
 
